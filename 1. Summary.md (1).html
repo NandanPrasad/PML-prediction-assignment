@@ -1,0 +1,94 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>1. Summary.md</title><style></style></head><body id="preview">
+<hr>
+<p class="has-line-data" data-line-start="1" data-line-end="5">title: “Prediction Assignment Writeup (Practical Machine Learning)”<br>
+author: “Nandan Prasad”<br>
+date: “October 19, 2020”<br>
+output: html_document</p>
+<hr>
+<h1 class="code-line" data-line-start=8 data-line-end=9><a id="1_Summary_8"></a>1. Summary</h1>
+<p class="has-line-data" data-line-start="10" data-line-end="11">This is a report for the prediction assignment (peer-graded assessment). My goal is to predict how 6 participants performed their exercises. The ML algorithm is applied to the available 20 test cases.</p>
+<h1 class="code-line" data-line-start=12 data-line-end=13><a id="2_Libraries_12"></a>2. Libraries</h1>
+<p class="has-line-data" data-line-start="14" data-line-end="15">Loading required libraries.</p>
+<pre><code class="has-line-data" data-line-start="16" data-line-end="20" class="language-{r">library(corrplot)
+library(rattle)
+library(caret)
+</code></pre>
+<h3 class="code-line" data-line-start=21 data-line-end=22><a id="3_Load_Data_21"></a>3. Load Data</h3>
+<p class="has-line-data" data-line-start="23" data-line-end="24">Loading train and test datasets.</p>
+<pre><code class="has-line-data" data-line-start="25" data-line-end="30" class="language-{r">TrainSet &lt;- read.csv(url(&quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;), header=TRUE)
+dim(TrainSet)
+TestSet &lt;- read.csv(url(&quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv&quot;), header=TRUE)
+dim(TestSet)
+</code></pre>
+<h3 class="code-line" data-line-start=31 data-line-end=32><a id="4_Processing_Data_31"></a>4. Processing Data</h3>
+<pre><code class="has-line-data" data-line-start="34" data-line-end="60" class="language-{r"># 70% of the data is train set and remaining 30% is assigned as test set.
+set.seed(1209480)
+inTrain &lt;- createDataPartition(TrainSet$classe, p = 0.7, list = FALSE)
+trainSet &lt;- TrainSet[inTrain, ]
+testSet &lt;- TrainSet[-inTrain, ]
+dim(trainSet)
+dim(testSet)
+# Removing near zero variance variables.
+nearZeroVarianceVariables &lt;- nearZeroVar(trainSet)
+trainSet &lt;- trainSet[, -nearZeroVarianceVariables]
+testSet  &lt;- testSet[, -nearZeroVarianceVariables]
+dim(trainSet)
+dim(testSet)
+# Removing variables that contain most NA entries. Threshold is set at 90%.
+NAvalueVariables &lt;- sapply(trainSet, function(x) mean(is.na(x))) &gt; 0.9
+NAvalueTest &lt;- sapply(testSet, function(x) mean(is.na(x))) &gt; 0.9
+trainSet &lt;- trainSet[, NAvalueVariables==F]
+testSet &lt;- testSet[, NAvalueTest==F]
+dim(trainSet)
+dim(testSet)
+# Removing identification variables 
+trainSet &lt;- trainSet[, -(1:5)]
+testSet &lt;- testSet[, -(1:5)]
+dim(trainSet)
+dim(testSet)
+</code></pre>
+<h3 class="code-line" data-line-start=60 data-line-end=61><a id="5_Data_Analysis_60"></a>5. Data Analysis</h3>
+<h2 class="code-line" data-line-start=62 data-line-end=63><a id="Check_correlation_among_variables_62"></a>Check correlation among variables</h2>
+<pre><code class="has-line-data" data-line-start="65" data-line-end="69" class="language-{r">correlation &lt;- cor(trainSet[, -54])
+corrplot(correlation, method=&quot;circle&quot;)
+# The circles with dark colors show highly correlated variables in the graph above. Correlations do not seem to give any analysis points as they are very less.
+</code></pre>
+<h2 class="code-line" data-line-start=70 data-line-end=71><a id="Classification_Tree_CT_70"></a>Classification Tree (CT)</h2>
+<pre><code class="has-line-data" data-line-start="72" data-line-end="81" class="language-{r">trControl &lt;- trainControl(method=&quot;cv&quot;, number=5)
+CTmodel &lt;- train(classe~., , method=&quot;rpart&quot;, data=trainSet, trControl=trControl)
+fancyRpartPlot(CTmodel$finalModel)
+predictTrain &lt;- predict(CTmodel,newdata=testData)
+confusionMatrixCT &lt;- confusionMatrix(testData$classe,predict_train)
+# Displaying confusion matrix and accuracy
+confusionMatrixCT$table
+confusionMatrixCT$overall[1]
+</code></pre>
+<h2 class="code-line" data-line-start=82 data-line-end=83><a id="Random_Forest_RF_82"></a>Random Forest (RF)</h2>
+<pre><code class="has-line-data" data-line-start="84" data-line-end="94" class="language-{r">random_forest &lt;- trainControl(method=&quot;cv&quot;, number=3, verboseIter=FALSE)
+RFmodel &lt;- train(classe ~ ., data=trainSet, method=&quot;rf&quot;, trControl=random_forest)
+RFmodel$finalModel
+plot(RFmodel,main=&quot;Accuracy of RF model&quot;)
+predictTrain &lt;- predict(RFmodel,newdata=testData)
+confusionMatrixRF &lt;- confusionMatrix(testData$classe,predictTrain)
+# Displaying confusion matrix and accuracy
+confusionMatrixRF
+plot(RFmodel$finalModel)
+</code></pre>
+<h2 class="code-line" data-line-start=95 data-line-end=96><a id="Generated_Boosted_Model_GBM_95"></a>Generated Boosted Model (GBM)</h2>
+<pre><code class="has-line-data" data-line-start="97" data-line-end="105" class="language-{r">set.seed(83823)
+GBM &lt;- trainControl(method = &quot;repeatedcv&quot;, number = 5, repeats = 1)
+GBMmodel  &lt;- train(classe ~ ., data=trainSet, method = &quot;gbm&quot;, trControl = GBM, verbose = FALSE)
+GBMmodel$finalModel
+predictGBM &lt;- predict(GBMmodel, newdata=testData)
+confusionMatrixGBM &lt;- confusionMatrix(predictGBM, testData$classe)
+confusionMatrixGBM
+</code></pre>
+<h1 class="code-line" data-line-start=107 data-line-end=108><a id="6_Conclusion_107"></a>6. Conclusion</h1>
+<p class="has-line-data" data-line-start="108" data-line-end="112">Classification Tree: 50.01% accuracy<br>
+Generalized Boosted: 98.76% accuracy<br>
+Random Forest: 99.48% accuracy<br>
+Since random forest model has best accuracy, it is used for predictions on the 20 test cases.</p>
+<pre><code class="has-line-data" data-line-start="114" data-line-end="117" class="language-{r">predictTest &lt;- predict(RFmodel, newdata = TestSet)
+predictTest
+</code></pre>
+</body></html>
